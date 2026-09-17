@@ -132,7 +132,7 @@ pub struct Span{
     end:usize,
 }
 impl Span {
-    fn new(start:usize,end:usize)->Self{
+    pub fn new(start:usize,end:usize)->Self{
          Self{
                start,end
          }
@@ -144,7 +144,7 @@ pub struct Token<'a>{
     pub span: Span,
 }
 impl<'a> Token<'a> {
-     fn new(kind:TokenKind,lexeme:&'a str,start:usize,end:usize)->Self{
+     pub fn new(kind:TokenKind,lexeme:&'a str,start:usize,end:usize)->Self{
           Self{
                 kind,
                 lexeme,
@@ -153,7 +153,7 @@ impl<'a> Token<'a> {
      }
 }
 // keyword match
-fn keyword(ident: &str) -> TokenKind {
+pub fn keyword(ident: &str) -> TokenKind {
     match ident {
         "let" => TokenKind::Let,
         "const" => TokenKind::Const,
@@ -178,7 +178,48 @@ fn keyword(ident: &str) -> TokenKind {
         _ => TokenKind::Identifier,
     }
 }
-fn operator(){
-
+pub fn operator(opt: &str) -> TokenKind {
+    match opt {
+        "+" => TokenKind::Plus,
+        "-" => TokenKind::Minus,
+        "*" => TokenKind::Star,
+        "/" => TokenKind::Slash,
+        "%" => TokenKind::Percent,
+        "=" => TokenKind::Equal,
+        "+=" => TokenKind::PlusEqual,
+        "-=" => TokenKind::MinusEqual,
+        "*=" => TokenKind::StarEqual,
+        "/=" => TokenKind::SlashEqual,
+        "%=" => TokenKind::PercentEqual,
+        "==" => TokenKind::EqualEqual,
+        "!=" => TokenKind::BangEqual,
+        "<" => TokenKind::Less,
+        "<=" => TokenKind::LessEqual,
+        ">" => TokenKind::Greater,
+        ">=" => TokenKind::GreaterEqual,
+        "!" => TokenKind::Bang,
+        "&&" => TokenKind::AndAnd,
+        "||" => TokenKind::OrOr,
+        "&" => TokenKind::Ampersand,
+        "|" => TokenKind::Pipe,
+        "^" => TokenKind::Caret,
+        "~" => TokenKind::Tilde,
+        "<<" => TokenKind::ShiftLeft,
+        ">>" => TokenKind::ShiftRight,
+        "(" => TokenKind::LeftParen,
+        ")" => TokenKind::RightParen,
+        "{" => TokenKind::LeftBrace,
+        "}" => TokenKind::RightBrace,
+        "[" => TokenKind::LeftBracket,
+        "]" => TokenKind::RightBracket,
+        "," => TokenKind::Comma,
+        "." => TokenKind::Dot,
+        ":" => TokenKind::Colon,
+        ";" => TokenKind::Semicolon,
+        "->" => TokenKind::Arrow,
+        "=>" => TokenKind::FatArrow,
+        "?" => TokenKind::Question,
+        _ => TokenKind::Illegal,
+    }
 }
 
