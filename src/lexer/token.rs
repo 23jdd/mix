@@ -127,6 +127,7 @@ pub enum TokenKind {
     Illegal,
 }
 /// Span
+#[derive(Debug)]
 pub struct Span{
     start:usize,
     end:usize,
@@ -138,6 +139,7 @@ impl Span {
          }
     }
 }
+#[derive(Debug)]
 pub struct Token<'a>{
     pub kind: TokenKind,
     pub lexeme:&'a str,
