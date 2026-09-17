@@ -66,12 +66,6 @@ pub enum TokenKind {
     ShiftLeft,      // <<
     ShiftRight,     // >>
 
-    // =========================
-    // Increment / decrement
-    // optional
-    // =========================
-    PlusPlus,       // ++
-    MinusMinus,     // --
 
     // =========================
     // Delimiters
@@ -126,10 +120,6 @@ pub enum TokenKind {
     Fn,             // fn
     Return,         // return
 
-    // =========================
-    // Optional language features
-    // =========================
-    Match,          // match
 
     // =========================
     // Error
@@ -181,4 +171,11 @@ fn keyword(ident: &str) -> TokenKind {
 
         _ => TokenKind::Identifier,
     }
+}
+
+fn unary(){
+
+}
+fn binary(){
+
 }

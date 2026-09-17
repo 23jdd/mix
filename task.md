@@ -1,23 +1,5 @@
 # mix
 
-```text
-
-let name = "mix";
-
-fn add(a, b) {
-    return a + b;
-}
-
-if name == "Rust" {
-    print(add(10, 20));
-}
-
-for i in range(0, 10) {
-    print(i);
-}
-```
-
-
 
 1. 基础类型：`int / float / bool / string / null/obj`
 2. 变量：`let x = 10`
