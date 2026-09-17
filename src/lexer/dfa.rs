@@ -1,3 +1,5 @@
+use std::thread::sleep;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum State {
     Start,
@@ -33,7 +35,7 @@ pub enum State {
 impl State {
     /// 返回:
     ///
-    /// (next_state, reconsume)
+    /// (pre_state,next_state,reconsume)
     ///
     /// reconsume = false
     ///     当前字符 c 已经被消费。
@@ -42,7 +44,7 @@ impl State {
     ///     当前 token 已结束，
     ///     但是当前字符 c 属于下一个 token，
     ///     lexer 必须重新把 c 交给 State::Start。
-    pub fn next(self, c: char) -> (State, bool) {
+    pub fn next(self, c: char) -> (State,State, bool) {
         match self {
             // ============================================================
             // Start
@@ -50,17 +52,17 @@ impl State {
             State::Start => match c {
                 // identifier
                 'a'..='z' | 'A'..='Z' | '_' => {
-                    (State::Identifier, false)
+                    (self,State::Identifier, false)
                 }
 
                 // number
                 '0'..='9' => {
-                    (State::Integer, false)
+                    (self,State::Integer, false)
                 }
 
                 // string
                 '"' => {
-                    (State::String, false)
+                    (self,State::String, false)
                 }
 
                 // + +=
@@ -69,37 +71,37 @@ impl State {
                 // % %=
                 // ! !=
                 '+' | '*' | '/' | '%' | '!' => {
-                    (State::MaybeEqual, false)
+                    (self,State::MaybeEqual, false)
                 }
 
                 // - -= ->
                 '-' => {
-                    (State::Minus, false)
+                    (self,State::Minus, false)
                 }
 
                 // = == =>
                 '=' => {
-                    (State::Equal, false)
+                    (self,State::Equal, false)
                 }
 
                 // < <= <<
                 '<' => {
-                    (State::Less, false)
+                    (self,State::Less, false)
                 }
 
                 // > >= >>
                 '>' => {
-                    (State::Greater, false)
+                    (self,State::Greater, false)
                 }
 
                 // & &&
                 '&' => {
-                    (State::AndDoubleSame, false)
+                    (self,State::AndDoubleSame, false)
                 }
 
                 // | ||
                 '|' => {
-                    (State::OrDoubleSame, false)
+                    (self,State::OrDoubleSame, false)
                 }
 
                 // always single char
@@ -116,16 +118,16 @@ impl State {
                 | ':'
                 | ';'
                 | '?' => {
-                    (State::Single, false)
+                    (self,State::Single, false)
                 }
 
                 // whitespace
                 ' ' | '\t' | '\n' | '\r' => {
-                    (State::Start, false)
+                    (self,State::Start, false)
                 }
 
                 _ => {
-                    (State::Dead, false)
+                    (self,State::Dead, false)
                 }
             },
 
@@ -142,15 +144,15 @@ impl State {
                 | 'A'..='Z'
                 | '0'..='9'
                 | '_' => {
-                    (State::Identifier, false)
+                    (self,State::Identifier, false)
                 }
 
                 _ if is_delimiter(c) => {
-                    (State::Start, true)
+                    (self,State::Start, true)
                 }
 
                 _ => {
-                    (State::Dead, false)
+                    (self,State::Dead, false)
                 }
             },
 
@@ -162,11 +164,11 @@ impl State {
             // ============================================================
             State::Integer => match c {
                 '0'..='9' => {
-                    (State::Integer, false)
+                    (self,State::Integer, false)
                 }
 
                 '.' => {
-                    (State::FloatDot, false)
+                    (self,State::FloatDot, false)
                 }
 
                 // 禁止：
@@ -177,15 +179,15 @@ impl State {
                 // 不应该解析成:
                 // Integer(123) + Identifier(abc)
                 'a'..='z' | 'A'..='Z' | '_' => {
-                    (State::Dead, false)
+                    (self,State::Dead, false)
                 }
 
                 _ if is_delimiter(c) => {
-                    (State::Start, true)
+                    (self,State::Start, true)
                 }
 
                 _ => {
-                    (State::Dead, false)
+                    (self,State::Dead, false)
                 }
             },
 
@@ -200,12 +202,12 @@ impl State {
             // ============================================================
             State::FloatDot => match c {
                 '0'..='9' => {
-                    (State::Float, false)
+                    (self,State::Float, false)
                 }
 
                 _ => {
                     // 123. 不允许
-                    (State::Dead, false)
+                    (self,State::Dead, false)
                 }
             },
 
@@ -217,7 +219,7 @@ impl State {
             // ============================================================
             State::Float => match c {
                 '0'..='9' => {
-                    (State::Float, false)
+                    (self,State::Float, false)
                 }
 
                 // 禁止:
@@ -226,15 +228,15 @@ impl State {
                 // 1.2_foo
                 // 1.2.3
                 'a'..='z' | 'A'..='Z' | '_' | '.' => {
-                    (State::Dead, false)
+                    (self,State::Dead, false)
                 }
 
                 _ if is_delimiter(c) => {
-                    (State::Start, true)
+                    (self,State::Start, true)
                 }
 
                 _ => {
-                    (State::Dead, false)
+                    (self,State::Dead, false)
                 }
             },
 
@@ -247,21 +249,21 @@ impl State {
             State::String => match c {
                 // string end
                 '"' => {
-                    (State::Start, false)
+                    (self,State::Start, false)
                 }
 
                 // escape
                 '\\' => {
-                    (State::StringEscape, false)
+                    (self,State::StringEscape, false)
                 }
 
                 // 普通字符串禁止真正换行
                 '\n' | '\r' => {
-                    (State::Dead, false)
+                    (self,State::Dead, false)
                 }
 
                 _ => {
-                    (State::String, false)
+                    (self,State::String, false)
                 }
             },
 
@@ -282,11 +284,11 @@ impl State {
                 | 'r'
                 | 't'
                 | '0' => {
-                    (State::String, false)
+                    (self,State::String, false)
                 }
 
                 _ => {
-                    (State::Dead, false)
+                    (self,State::Dead, false)
                 }
             },
 
@@ -310,14 +312,14 @@ impl State {
             // ============================================================
             State::MaybeEqual => match c {
                 '=' => {
-                    (State::Start, false)
+                    (self,State::Start, false)
                 }
 
                 _ => {
                     // 前面的 operator 自己就是完整 token
                     //
                     // 当前 c 属于下一个 token
-                    (State::Start, true)
+                    (self,State::Start, true)
                 }
             },
 
@@ -330,11 +332,11 @@ impl State {
             // ============================================================
             State::Minus => match c {
                 '=' | '>' => {
-                    (State::Start, false)
+                    (self,State::Start, false)
                 }
 
                 _ => {
-                    (State::Start, true)
+                    (self,State::Start, true)
                 }
             },
 
@@ -347,11 +349,11 @@ impl State {
             // ============================================================
             State::Equal => match c {
                 '=' | '>' => {
-                    (State::Start, false)
+                    (self,State::Start, false)
                 }
 
                 _ => {
-                    (State::Start, true)
+                    (self,State::Start, true)
                 }
             },
 
@@ -364,11 +366,11 @@ impl State {
             // ============================================================
             State::Less => match c {
                 '=' | '<' => {
-                    (State::Start, false)
+                    (self,State::Start, false)
                 }
 
                 _ => {
-                    (State::Start, true)
+                    (self,State::Start, true)
                 }
             },
 
@@ -381,11 +383,11 @@ impl State {
             // ============================================================
             State::Greater => match c {
                 '=' | '>' => {
-                    (State::Start, false)
+                    (self,State::Start, false)
                 }
 
                 _ => {
-                    (State::Start, true)
+                    (self,State::Start, true)
                 }
             },
 
@@ -395,11 +397,11 @@ impl State {
             // ============================================================
             State::AndDoubleSame => match c {
                 '&' => {
-                    (State::Start, false)
+                    (self,State::Start, false)
                 }
 
                 _ => {
-                    (State::Start, true)
+                    (self,State::Start, true)
                 }
             },
 
@@ -409,11 +411,11 @@ impl State {
             // ============================================================
             State::OrDoubleSame => match c {
                 '|' => {
-                    (State::Start, false)
+                    (self,State::Start, false)
                 }
 
                 _ => {
-                    (State::Start, true)
+                    (self,State::Start, true)
                 }
             },
 
@@ -437,14 +439,14 @@ impl State {
             State::Single => {
                 // 当前字符不是 Single 的一部分，
                 // Single token 已经在上一次 transition 消费完成。
-                (State::Start, true)
+                (self,State::Start, true)
             }
 
             // ============================================================
             // Dead
             // ============================================================
             State::Dead => {
-                (State::Dead, false)
+                (self,State::Dead, false)
             }
         }
     }

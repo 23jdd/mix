@@ -16,12 +16,15 @@ mod dfa;
 use token::Token;
 pub struct Lexer{
      source:String,
-
+     lexeme_begin:usize,
+     forward:usize,
 }
 impl Lexer {
     pub fn new(source: String) -> Self {
         Self {
-            source
+            source,
+            lexeme_begin:0,
+            forward:0,
         }
     }
     pub fn next_token(&self)->Token{

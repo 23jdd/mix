@@ -138,13 +138,19 @@ impl Span {
          }
     }
 }
-pub struct Token {
+pub struct Token<'a>{
     pub kind: TokenKind,
-    pub lexeme: String,
+    pub lexeme:&'a str,
     pub span: Span,
 }
-impl Token {
-
+impl<'a> Token<'a> {
+     fn new(kind:TokenKind,lexeme:&'a str,start:usize,end:usize)->Self{
+          Self{
+                kind,
+                lexeme,
+                span: Span::new(start,end),
+          }
+     }
 }
 // keyword match
 fn keyword(ident: &str) -> TokenKind {
@@ -172,10 +178,7 @@ fn keyword(ident: &str) -> TokenKind {
         _ => TokenKind::Identifier,
     }
 }
-
-fn unary(){
-
-}
-fn binary(){
+fn operator(){
 
 }
+
