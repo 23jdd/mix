@@ -105,6 +105,11 @@ pub enum Builtin {
     Print,
     Len,
     Range,
+    ReadFile,
+    WriteFile,
+    AppendFile,
+    FileExists,
+    ListDir,
 }
 
 /// Runtime 中流动的动态值。
@@ -204,6 +209,11 @@ impl Builtin {
             Self::Print => "print",
             Self::Len => "len",
             Self::Range => "range",
+            Self::ReadFile => "read_file",
+            Self::WriteFile => "write_file",
+            Self::AppendFile => "append_file",
+            Self::FileExists => "file_exists",
+            Self::ListDir => "list_dir",
         }
     }
 }

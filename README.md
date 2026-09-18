@@ -192,6 +192,35 @@ print(range(2, 6));       // [2, 3, 4, 5]
 print(range(5, 0, -2));   // [5, 3, 1]
 ```
 
+### 文件操作
+
+Runtime 提供以下常用文件 Builtin：
+
+- `read_file(path)`：以 UTF-8 文本读取文件并返回字符串。
+- `write_file(path, content)`：写入 UTF-8 文本；文件已存在时会覆盖。
+- `append_file(path, content)`：追加 UTF-8 文本；文件不存在时会创建。
+- `file_exists(path)`：路径存在时返回 `true`。
+- `list_dir(path)`：返回目录中的文件名数组，结果按名称排序。
+
+`read()` 和 `write()` 分别是 `read_file()` 和 `write_file()` 的简短别名。推荐使用完整名称，让代码含义更清楚。
+
+```text
+let path = "notes.txt";
+
+write_file(path, "first line\n");
+append_file(path, "second line\n");
+
+if file_exists(path) {
+    print(read_file(path));
+}
+
+for name in list_dir(".") {
+    print(name);
+}
+```
+
+相对路径以启动 Mix 进程时的当前工作目录为基准。文件函数拥有与 Mix 进程相同的文件系统权限，因此不要运行来源不可信、包含文件操作的脚本。本项目暂不提供删除文件或目录的 Builtin。
+
 ## 开发：添加内置函数
 
 内置函数和普通函数使用相同的调用语法，因此不需要修改 Lexer、Parser 或 AST。以添加 `abs()` 为例，需要完成以下四步。

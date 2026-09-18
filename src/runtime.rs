@@ -1,5 +1,7 @@
 use std::cell::RefCell;
 use std::fmt;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 use std::rc::Rc;
 
 use crate::ast::{Block, Expression, Program, Statement};
@@ -74,6 +76,20 @@ impl Runtime {
         globals
             .define("range".into(), Value::Builtin(Builtin::Range), false)
             .expect("fresh global environment");
+        // read/write 保留为简短别名，推荐使用含义更明确的 *_file 名称。
+        for (name, builtin) in [
+            ("read_file", Builtin::ReadFile),
+            ("read", Builtin::ReadFile),
+            ("write_file", Builtin::WriteFile),
+            ("write", Builtin::WriteFile),
+            ("append_file", Builtin::AppendFile),
+            ("file_exists", Builtin::FileExists),
+            ("list_dir", Builtin::ListDir),
+        ] {
+            globals
+                .define(name.into(), Value::Builtin(builtin), false)
+                .expect("fresh global environment");
+        }
         Self {
             program,
             globals,
@@ -435,6 +451,54 @@ impl Runtime {
                 Ok(Value::Int(length))
             }
             Builtin::Range => range_values(arguments),
+            Builtin::ReadFile => {
+                expect_arity("read_file", &arguments, 1)?;
+                let path = expect_string("read_file", &arguments[0])?;
+                fs::read_to_string(path)
+                    .map(Value::String)
+                    .map_err(|error| file_error("read_file", path, error))
+            }
+            Builtin::WriteFile => {
+                expect_arity("write_file", &arguments, 2)?;
+                let path = expect_string("write_file", &arguments[0])?;
+                let content = expect_string("write_file", &arguments[1])?;
+                fs::write(path, content)
+                    .map(|()| Value::Null)
+                    .map_err(|error| file_error("write_file", path, error))
+            }
+            Builtin::AppendFile => {
+                expect_arity("append_file", &arguments, 2)?;
+                let path = expect_string("append_file", &arguments[0])?;
+                let content = expect_string("append_file", &arguments[1])?;
+                let mut file = OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(path)
+                    .map_err(|error| file_error("append_file", path, error))?;
+                file.write_all(content.as_bytes())
+                    .map_err(|error| file_error("append_file", path, error))?;
+                Ok(Value::Null)
+            }
+            Builtin::FileExists => {
+                expect_arity("file_exists", &arguments, 1)?;
+                let path = expect_string("file_exists", &arguments[0])?;
+                Ok(Value::Bool(std::path::Path::new(path).exists()))
+            }
+            Builtin::ListDir => {
+                expect_arity("list_dir", &arguments, 1)?;
+                let path = expect_string("list_dir", &arguments[0])?;
+                let entries =
+                    fs::read_dir(path).map_err(|error| file_error("list_dir", path, error))?;
+                let mut names = Vec::new();
+                for entry in entries {
+                    let entry = entry.map_err(|error| file_error("list_dir", path, error))?;
+                    names.push(Value::String(
+                        entry.file_name().to_string_lossy().into_owned(),
+                    ));
+                }
+                names.sort_by_key(Value::display);
+                Ok(Value::Array(Rc::new(RefCell::new(names))))
+            }
         }
     }
 
@@ -793,6 +857,20 @@ fn expect_arity(name: &str, arguments: &[Value], expected: usize) -> Result<(), 
     }
 }
 
+fn expect_string<'a>(name: &str, value: &'a Value) -> Result<&'a str, RuntimeError> {
+    match value {
+        Value::String(value) => Ok(value),
+        value => Err(RuntimeError::new(format!(
+            "{name}() expected string, got `{}`",
+            value.type_name()
+        ))),
+    }
+}
+
+fn file_error(operation: &str, path: &str, error: std::io::Error) -> RuntimeError {
+    RuntimeError::new(format!("{operation}({path:?}) failed: {error}"))
+}
+
 fn range_values(arguments: Vec<Value>) -> Result<Value, RuntimeError> {
     if !(1..=3).contains(&arguments.len()) {
         return Err(RuntimeError::new(format!(
@@ -946,6 +1024,38 @@ mod tests {
         )
         .unwrap();
         assert_eq!(output, ["mix 3 true", "1 -1"]);
+    }
+
+    #[test]
+    fn supports_common_file_operations() {
+        let unique = format!(
+            "mix-runtime-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let directory = std::env::temp_dir().join(unique);
+        std::fs::create_dir(&directory).unwrap();
+        let file = directory.join("example.txt");
+        let directory_literal = format!("{:?}", directory.to_string_lossy());
+        let file_literal = format!("{:?}", file.to_string_lossy());
+        let source = format!(
+            r#"
+                write_file({file_literal}, "hello");
+                append_file({file_literal}, " world");
+                print(file_exists({file_literal}));
+                print(read_file({file_literal}));
+                print(len(list_dir({directory_literal})));
+            "#
+        );
+
+        let result = execute(&source);
+        std::fs::remove_file(&file).unwrap();
+        std::fs::remove_dir(&directory).unwrap();
+
+        assert_eq!(result.unwrap(), ["true", "hello world", "1"]);
     }
 
     #[test]
