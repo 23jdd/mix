@@ -4,15 +4,15 @@
 
 项目目前包含 Lexer、Parser、AST 和树遍历解释器。Runtime 采用动态类型与词法作用域，部分行为参考 Python，同时保留 `let`、`fn`、花括号和分号等 Mix 自己的语法。
 
-
-## 运行
-
+## 下载
 需要安装支持 Rust 2024 Edition 的 Rust 工具链。
-
 ```shell
-cargo run -- testdata/hello/hello.mix
+cargo install --git https://github.com/23jdd/mix
 ```
-
+## 运行
+```shell
+mix example.mix
+```
 运行测试和静态检查：
 
 ```shell
