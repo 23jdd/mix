@@ -192,6 +192,113 @@ print(range(2, 6));       // [2, 3, 4, 5]
 print(range(5, 0, -2));   // [5, 3, 1]
 ```
 
+## 开发：添加内置函数
+
+内置函数和普通函数使用相同的调用语法，因此不需要修改 Lexer、Parser 或 AST。以添加 `abs()` 为例，需要完成以下四步。
+
+### 1. 声明 Builtin
+
+在 `src/value.rs` 的 `Builtin` 枚举中添加新成员：
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Builtin {
+    Print,
+    Len,
+    Range,
+    Abs,
+}
+```
+
+同时在 `Builtin::name()` 中添加名称映射：
+
+```rust
+impl Builtin {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Print => "print",
+            Self::Len => "len",
+            Self::Range => "range",
+            Self::Abs => "abs",
+        }
+    }
+}
+```
+
+### 2. 注册到全局环境
+
+在 `src/runtime.rs` 的 `Runtime::with_output()` 中注册函数：
+
+```rust
+globals
+    .define("abs".into(), Value::Builtin(Builtin::Abs), false)
+    .expect("fresh global environment");
+```
+
+`define()` 的第三个参数表示绑定是否可变。Builtin 使用 `false`，防止用户在全局作用域中重新赋值。
+
+### 3. 实现调用逻辑
+
+在 `Runtime::call_builtin()` 的 `match` 中处理新的枚举成员：
+
+```rust
+Builtin::Abs => {
+    expect_arity("abs", &arguments, 1)?;
+
+    match &arguments[0] {
+        Value::Int(value) => value
+            .checked_abs()
+            .map(Value::Int)
+            .ok_or_else(|| RuntimeError::new("integer overflow in abs()")),
+        Value::Float(value) => Ok(Value::Float(value.abs())),
+        value => Err(RuntimeError::new(format!(
+            "abs() expected int or float, got `{}`",
+            value.type_name()
+        ))),
+    }
+}
+```
+
+`expect_arity()` 用于检查参数数量。Builtin 应当对参数数量、参数类型、溢出和其他失败情况返回 `RuntimeError`，不要直接 panic。
+
+### 4. 添加测试
+
+在 `src/runtime.rs` 的测试模块中加入：
+
+```rust
+#[test]
+fn supports_abs_builtin() {
+    let output = execute(
+        r#"
+            print(abs(-10));
+            print(abs(-2.5));
+            print(abs(3));
+        "#,
+    )
+    .unwrap();
+
+    assert_eq!(output, ["10", "2.5", "3"]);
+}
+```
+
+最后运行：
+
+```shell
+cargo test
+cargo clippy --all-targets -- -D warnings
+```
+
+Builtin 的执行流程如下：
+
+```text
+abs(-10)
+  -> Parser 生成 Call AST
+  -> Runtime 在全局环境找到 abs
+  -> 得到 Value::Builtin(Builtin::Abs)
+  -> Runtime::call_builtin() 执行
+  -> 返回 Value::Int(10)
+```
+
 ### 注释
 
 目前支持 `//` 单行注释：

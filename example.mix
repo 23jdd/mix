@@ -1,0 +1,25 @@
+let name = "mix";
+let numbers = [1, 2, 3, 4,7,8,9];
+
+fn sum(values) {
+    let total = 0;
+    for value in values {
+        total += value;
+    }
+    return total;
+}
+
+if name == "mix" {
+    print(name, sum(numbers));
+} else {
+    print("unknown language");
+}
+let d={
+};
+fn hello(){
+   print("hello world");
+}
+d.age=1;
+print(d.age);
+d.hello=hello;
+d.hello();
