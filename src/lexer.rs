@@ -25,10 +25,12 @@ impl Lexer {
     fn len(&self) -> usize {
         self.source.len()
     }
-    pub fn next_token(&mut self) -> Token<'_> {
+    fn next(&mut self, peek:bool) -> Token<'_> {
         let mut state = State::Start;
+        let lexeme_begin = self.lexeme_begin;
+        let forward = self.forward;
         let chs: Vec<char> = self.source.chars().collect();
-        loop {
+        let t=loop {
             let (pre, next, reconsumed) = state.next(chs[self.forward]);
             state=next;
             if !reconsumed {
@@ -76,6 +78,17 @@ impl Lexer {
             } else if state == State::Dead {
                 break Token::new(TokenKind::Illegal, &self.source[self.lexeme_begin..self.forward], self.lexeme_begin, self.forward);
             }
+        };
+        if peek{
+            self.lexeme_begin=lexeme_begin;
+            self.forward=forward;
         }
+        t
+    }
+    pub fn next_token(&mut self)->Token<'_>{
+        self.next(false)
+    }
+    pub fn peek(&mut self)->Token<'_> {
+        self.next(true)
     }
 }

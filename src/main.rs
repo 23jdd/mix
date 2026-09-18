@@ -2,6 +2,7 @@ use crate::lexer::Lexer;
 use std::{env, fs};
 use lexer::token::TokenKind;
 mod lexer;
+mod parser;
 
 fn main() {
     let mut  args: Vec<String> = env::args().collect();
