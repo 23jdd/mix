@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenKind {
     // =========================
     // Special
@@ -21,105 +21,103 @@ pub enum TokenKind {
     // =========================
     // Arithmetic operators
     // =========================
-    Plus,       // +
-    Minus,      // -
-    Star,       // *
-    Slash,      // /
-    Percent,    // %
+    Plus,    // +
+    Minus,   // -
+    Star,    // *
+    Slash,   // /
+    Percent, // %
 
     // =========================
     // Assignment
     // =========================
-    Equal,          // =
-    PlusEqual,      // +=
-    MinusEqual,     // -=
-    StarEqual,      // *=
-    SlashEqual,     // /=
-    PercentEqual,   // %=
+    Equal,        // =
+    PlusEqual,    // +=
+    MinusEqual,   // -=
+    StarEqual,    // *=
+    SlashEqual,   // /=
+    PercentEqual, // %=
 
     // =========================
     // Comparison
     // =========================
-    EqualEqual,     // ==
-    BangEqual,      // !=
+    EqualEqual, // ==
+    BangEqual,  // !=
 
-    Less,           // <
-    LessEqual,      // <=
-    Greater,        // >
-    GreaterEqual,   // >=
+    Less,         // <
+    LessEqual,    // <=
+    Greater,      // >
+    GreaterEqual, // >=
 
     // =========================
     // Logical
     // =========================
-    Bang,           // !
-    AndAnd,         // &&
-    OrOr,           // ||
+    Bang,   // !
+    AndAnd, // &&
+    OrOr,   // ||
 
     // =========================
     // Bitwise
     // =========================
-    Ampersand,      // &
-    Pipe,           // |
-    Caret,          // ^
-    Tilde,          // ~
+    Ampersand, // &
+    Pipe,      // |
+    Caret,     // ^
+    Tilde,     // ~
 
-    ShiftLeft,      // <<
-    ShiftRight,     // >>
-
+    ShiftLeft,  // <<
+    ShiftRight, // >>
 
     // =========================
     // Delimiters
     // =========================
-    LeftParen,      // (
-    RightParen,     // )
+    LeftParen,  // (
+    RightParen, // )
 
-    LeftBrace,      // {
-    RightBrace,     // }
+    LeftBrace,  // {
+    RightBrace, // }
 
-    LeftBracket,    // [
-    RightBracket,   // ]
+    LeftBracket,  // [
+    RightBracket, // ]
 
     // =========================
     // Separators
     // =========================
-    Comma,          // ,
-    Dot,            // .
-    Colon,          // :
-    Semicolon,      // ;
+    Comma,     // ,
+    Dot,       // .
+    Colon,     // :
+    Semicolon, // ;
 
     // =========================
     // Other punctuation
     // =========================
-    Arrow,          // ->
-    FatArrow,       // =>
+    Arrow,    // ->
+    FatArrow, // =>
 
-    Question,       // ?
+    Question, // ?
 
     // =========================
     // Variables
     // =========================
-    Let,            // let
-    Const,          // const
+    Let,   // let
+    Const, // const
 
     // =========================
     // Control flow
     // =========================
-    If,             // if
-    Else,           // else
+    If,   // if
+    Else, // else
 
-    While,          // while
-    For,            // for
-    In,             // in
+    While, // while
+    For,   // for
+    In,    // in
 
-    Break,          // break
-    Continue,       // continue
+    Break,    // break
+    Continue, // continue
 
     // =========================
     // Functions
     // =========================
-    Fn,             // fn
-    Return,         // return
-
+    Fn,     // fn
+    Return, // return
 
     // =========================
     // Error
@@ -127,32 +125,30 @@ pub enum TokenKind {
     Illegal,
 }
 /// Span
-#[derive(Debug)]
-pub struct Span{
-    start:usize,
-    end:usize,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Span {
+    pub start: usize,
+    pub end: usize,
 }
 impl Span {
-    pub fn new(start:usize,end:usize)->Self{
-         Self{
-               start,end
-         }
+    pub fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
     }
 }
-#[derive(Debug)]
-pub struct Token<'a>{
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Token {
     pub kind: TokenKind,
-    pub lexeme:&'a str,
+    pub lexeme: String,
     pub span: Span,
 }
-impl<'a> Token<'a> {
-     pub fn new(kind:TokenKind,lexeme:&'a str,start:usize,end:usize)->Self{
-          Self{
-                kind,
-                lexeme,
-                span: Span::new(start,end),
-          }
-     }
+impl Token {
+    pub fn new(kind: TokenKind, lexeme: impl Into<String>, start: usize, end: usize) -> Self {
+        Self {
+            kind,
+            lexeme: lexeme.into(),
+            span: Span::new(start, end),
+        }
+    }
 }
 // keyword match
 pub fn keyword(ident: &str) -> TokenKind {
@@ -224,4 +220,3 @@ pub fn operator(opt: &str) -> TokenKind {
         _ => TokenKind::Illegal,
     }
 }
-
