@@ -192,6 +192,46 @@ print(range(2, 6));       // [2, 3, 4, 5]
 print(range(5, 0, -2));   // [5, 3, 1]
 ```
 
+### 字符串函数
+
+- `str(value)`：将任意值转换成字符串。
+- `upper(value)` / `lower(value)`：转换字符串大小写。
+- `trim(value)`：移除字符串两端空白。
+- `contains(value, needle)`：判断是否包含子字符串。
+- `starts_with(value, prefix)` / `ends_with(value, suffix)`：判断开头或结尾。
+- `split(value, separator)`：按非空分隔符拆分并返回数组。
+- `join(separator, values)`：连接字符串数组。
+- `replace(value, from, to)`：替换所有匹配的子字符串。
+
+```text
+print(upper("Mix"));                       // MIX
+print(trim("  hello  "));                 // hello
+print(split("a,b,c", ","));              // ["a", "b", "c"]
+print(join("-", ["a", "b", "c"]));      // a-b-c
+print(replace("a-b-a", "a", "x"));       // x-b-x
+```
+
+字符串本身还支持 `+` 拼接、`*` 重复、比较、Unicode 字符索引和 `len()`。
+
+### 数学函数
+
+- `abs(value)`：绝对值。
+- `min(...values)` / `max(...values)`：返回最小值或最大值，至少需要一个数字。
+- `pow(base, exponent)`：幂运算。
+- `sqrt(value)`：平方根，不接受负数。
+- `floor(value)` / `ceil(value)`：向下或向上取整并返回整数。
+- `round(value)`：使用 ties-to-even（银行家舍入）并返回整数。
+
+```text
+print(abs(-5));                 // 5
+print(min(3, 1.5, 2));         // 1.5
+print(max(3, 1.5, 2));         // 3
+print(pow(2, 10));              // 1024
+print(sqrt(9));                 // 3.0
+print(floor(2.9), ceil(2.1));   // 2 3
+print(round(2.5), round(3.5));  // 2 4
+```
+
 ### 文件操作
 
 Runtime 提供以下常用文件 Builtin：
@@ -200,6 +240,8 @@ Runtime 提供以下常用文件 Builtin：
 - `write_file(path, content)`：写入 UTF-8 文本；文件已存在时会覆盖。
 - `append_file(path, content)`：追加 UTF-8 文本；文件不存在时会创建。
 - `file_exists(path)`：路径存在时返回 `true`。
+- `is_file(path)`：路径存在且是普通文件时返回 `true`。
+- `is_dir(path)`：路径存在且是目录时返回 `true`。
 - `list_dir(path)`：返回目录中的文件名数组，结果按名称排序。
 
 `read()` 和 `write()` 分别是 `read_file()` 和 `write_file()` 的简短别名。推荐使用完整名称，让代码含义更清楚。
@@ -211,9 +253,11 @@ write_file(path, "first line\n");
 append_file(path, "second line\n");
 
 if file_exists(path) {
+    print(is_file(path));
     print(read_file(path));
 }
 
+print(is_dir("."));
 for name in list_dir(".") {
     print(name);
 }
@@ -223,7 +267,7 @@ for name in list_dir(".") {
 
 ## 开发：添加内置函数
 
-内置函数和普通函数使用相同的调用语法，因此不需要修改 Lexer、Parser 或 AST。以添加 `abs()` 为例，需要完成以下四步。
+内置函数和普通函数使用相同的调用语法，因此不需要修改 Lexer、Parser 或 AST。以添加 `sign()` 为例，需要完成以下四步。
 
 ### 1. 声明 Builtin
 
@@ -235,7 +279,7 @@ pub enum Builtin {
     Print,
     Len,
     Range,
-    Abs,
+    Sign,
 }
 ```
 
@@ -248,7 +292,7 @@ impl Builtin {
             Self::Print => "print",
             Self::Len => "len",
             Self::Range => "range",
-            Self::Abs => "abs",
+            Self::Sign => "sign",
         }
     }
 }
@@ -260,7 +304,7 @@ impl Builtin {
 
 ```rust
 globals
-    .define("abs".into(), Value::Builtin(Builtin::Abs), false)
+    .define("sign".into(), Value::Builtin(Builtin::Sign), false)
     .expect("fresh global environment");
 ```
 
@@ -271,17 +315,23 @@ globals
 在 `Runtime::call_builtin()` 的 `match` 中处理新的枚举成员：
 
 ```rust
-Builtin::Abs => {
-    expect_arity("abs", &arguments, 1)?;
+Builtin::Sign => {
+    expect_arity("sign", &arguments, 1)?;
 
     match &arguments[0] {
-        Value::Int(value) => value
-            .checked_abs()
-            .map(Value::Int)
-            .ok_or_else(|| RuntimeError::new("integer overflow in abs()")),
-        Value::Float(value) => Ok(Value::Float(value.abs())),
+        Value::Int(value) => Ok(Value::Int(value.signum())),
+        Value::Float(value) if value.is_nan() => {
+            Err(RuntimeError::new("sign() does not support NaN"))
+        }
+        Value::Float(value) => Ok(Value::Int(if *value > 0.0 {
+            1
+        } else if *value < 0.0 {
+            -1
+        } else {
+            0
+        })),
         value => Err(RuntimeError::new(format!(
-            "abs() expected int or float, got `{}`",
+            "sign() expected int or float, got `{}`",
             value.type_name()
         ))),
     }
@@ -296,17 +346,17 @@ Builtin::Abs => {
 
 ```rust
 #[test]
-fn supports_abs_builtin() {
+fn supports_sign_builtin() {
     let output = execute(
         r#"
-            print(abs(-10));
-            print(abs(-2.5));
-            print(abs(3));
+            print(sign(-10));
+            print(sign(0));
+            print(sign(2.5));
         "#,
     )
     .unwrap();
 
-    assert_eq!(output, ["10", "2.5", "3"]);
+    assert_eq!(output, ["-1", "0", "1"]);
 }
 ```
 
@@ -320,12 +370,12 @@ cargo clippy --all-targets -- -D warnings
 Builtin 的执行流程如下：
 
 ```text
-abs(-10)
+sign(-10)
   -> Parser 生成 Call AST
-  -> Runtime 在全局环境找到 abs
-  -> 得到 Value::Builtin(Builtin::Abs)
+  -> Runtime 在全局环境找到 sign
+  -> 得到 Value::Builtin(Builtin::Sign)
   -> Runtime::call_builtin() 执行
-  -> 返回 Value::Int(10)
+  -> 返回 Value::Int(-1)
 ```
 
 ### 注释

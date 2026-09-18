@@ -84,7 +84,33 @@ impl Runtime {
             ("write", Builtin::WriteFile),
             ("append_file", Builtin::AppendFile),
             ("file_exists", Builtin::FileExists),
+            ("is_file", Builtin::IsFile),
+            ("is_dir", Builtin::IsDir),
             ("list_dir", Builtin::ListDir),
+        ] {
+            globals
+                .define(name.into(), Value::Builtin(builtin), false)
+                .expect("fresh global environment");
+        }
+        for (name, builtin) in [
+            ("str", Builtin::Str),
+            ("upper", Builtin::Upper),
+            ("lower", Builtin::Lower),
+            ("trim", Builtin::Trim),
+            ("contains", Builtin::Contains),
+            ("starts_with", Builtin::StartsWith),
+            ("ends_with", Builtin::EndsWith),
+            ("split", Builtin::Split),
+            ("join", Builtin::Join),
+            ("replace", Builtin::Replace),
+            ("abs", Builtin::Abs),
+            ("min", Builtin::Min),
+            ("max", Builtin::Max),
+            ("pow", Builtin::Pow),
+            ("sqrt", Builtin::Sqrt),
+            ("floor", Builtin::Floor),
+            ("ceil", Builtin::Ceil),
+            ("round", Builtin::Round),
         ] {
             globals
                 .define(name.into(), Value::Builtin(builtin), false)
@@ -484,6 +510,16 @@ impl Runtime {
                 let path = expect_string("file_exists", &arguments[0])?;
                 Ok(Value::Bool(std::path::Path::new(path).exists()))
             }
+            Builtin::IsFile => {
+                expect_arity("is_file", &arguments, 1)?;
+                let path = expect_string("is_file", &arguments[0])?;
+                Ok(Value::Bool(std::path::Path::new(path).is_file()))
+            }
+            Builtin::IsDir => {
+                expect_arity("is_dir", &arguments, 1)?;
+                let path = expect_string("is_dir", &arguments[0])?;
+                Ok(Value::Bool(std::path::Path::new(path).is_dir()))
+            }
             Builtin::ListDir => {
                 expect_arity("list_dir", &arguments, 1)?;
                 let path = expect_string("list_dir", &arguments[0])?;
@@ -499,6 +535,58 @@ impl Runtime {
                 names.sort_by_key(Value::display);
                 Ok(Value::Array(Rc::new(RefCell::new(names))))
             }
+            Builtin::Str => {
+                expect_arity("str", &arguments, 1)?;
+                Ok(Value::String(arguments[0].display()))
+            }
+            Builtin::Upper => string_map("upper", &arguments, str::to_uppercase),
+            Builtin::Lower => string_map("lower", &arguments, str::to_lowercase),
+            Builtin::Trim => string_map("trim", &arguments, |value| value.trim().to_owned()),
+            Builtin::Contains => {
+                let (value, needle) = expect_two_strings("contains", &arguments)?;
+                Ok(Value::Bool(value.contains(needle)))
+            }
+            Builtin::StartsWith => {
+                let (value, prefix) = expect_two_strings("starts_with", &arguments)?;
+                Ok(Value::Bool(value.starts_with(prefix)))
+            }
+            Builtin::EndsWith => {
+                let (value, suffix) = expect_two_strings("ends_with", &arguments)?;
+                Ok(Value::Bool(value.ends_with(suffix)))
+            }
+            Builtin::Split => {
+                let (value, separator) = expect_two_strings("split", &arguments)?;
+                if separator.is_empty() {
+                    return Err(RuntimeError::new("split() separator cannot be empty"));
+                }
+                let parts = value
+                    .split(separator)
+                    .map(|part| Value::String(part.to_owned()))
+                    .collect();
+                Ok(Value::Array(Rc::new(RefCell::new(parts))))
+            }
+            Builtin::Join => join_strings(arguments),
+            Builtin::Replace => {
+                expect_arity("replace", &arguments, 3)?;
+                let value = expect_string("replace", &arguments[0])?;
+                let from = expect_string("replace", &arguments[1])?;
+                let to = expect_string("replace", &arguments[2])?;
+                Ok(Value::String(value.replace(from, to)))
+            }
+            Builtin::Abs => absolute_value(arguments),
+            Builtin::Min => extreme_value("min", arguments, false),
+            Builtin::Max => extreme_value("max", arguments, true),
+            Builtin::Pow => power_value(arguments),
+            Builtin::Sqrt => unary_float_math("sqrt", arguments, |value| {
+                if value < 0.0 {
+                    Err(RuntimeError::new("sqrt() does not support negative values"))
+                } else {
+                    Ok(value.sqrt())
+                }
+            }),
+            Builtin::Floor => rounded_integer("floor", arguments, f64::floor),
+            Builtin::Ceil => rounded_integer("ceil", arguments, f64::ceil),
+            Builtin::Round => rounded_integer("round", arguments, f64::round_ties_even),
         }
     }
 
@@ -867,6 +955,182 @@ fn expect_string<'a>(name: &str, value: &'a Value) -> Result<&'a str, RuntimeErr
     }
 }
 
+fn expect_two_strings<'a>(
+    name: &str,
+    arguments: &'a [Value],
+) -> Result<(&'a str, &'a str), RuntimeError> {
+    expect_arity(name, arguments, 2)?;
+    Ok((
+        expect_string(name, &arguments[0])?,
+        expect_string(name, &arguments[1])?,
+    ))
+}
+
+fn string_map(
+    name: &str,
+    arguments: &[Value],
+    operation: impl FnOnce(&str) -> String,
+) -> Result<Value, RuntimeError> {
+    expect_arity(name, arguments, 1)?;
+    Ok(Value::String(operation(expect_string(
+        name,
+        &arguments[0],
+    )?)))
+}
+
+fn join_strings(arguments: Vec<Value>) -> Result<Value, RuntimeError> {
+    expect_arity("join", &arguments, 2)?;
+    let separator = expect_string("join", &arguments[0])?;
+    let Value::Array(values) = &arguments[1] else {
+        return Err(RuntimeError::new(format!(
+            "join() expected array, got `{}`",
+            arguments[1].type_name()
+        )));
+    };
+    let values = values.borrow();
+    let mut strings = Vec::with_capacity(values.len());
+    for value in values.iter() {
+        strings.push(expect_string("join", value)?);
+    }
+    Ok(Value::String(strings.join(separator)))
+}
+
+fn absolute_value(arguments: Vec<Value>) -> Result<Value, RuntimeError> {
+    expect_arity("abs", &arguments, 1)?;
+    match &arguments[0] {
+        Value::Int(value) => value
+            .checked_abs()
+            .map(Value::Int)
+            .ok_or_else(|| RuntimeError::new("integer overflow in abs()")),
+        Value::Float(value) => Ok(Value::Float(value.abs())),
+        value => Err(RuntimeError::new(format!(
+            "abs() expected int or float, got `{}`",
+            value.type_name()
+        ))),
+    }
+}
+
+fn extreme_value(
+    name: &str,
+    arguments: Vec<Value>,
+    select_greater: bool,
+) -> Result<Value, RuntimeError> {
+    let mut values = arguments.into_iter();
+    let mut best = values
+        .next()
+        .ok_or_else(|| RuntimeError::new(format!("{name}() expected at least 1 argument")))?;
+    numeric_order(name, &best, &best)?;
+    for candidate in values {
+        let ordering = numeric_order(name, &candidate, &best)?;
+        let replace = if select_greater {
+            ordering.is_gt()
+        } else {
+            ordering.is_lt()
+        };
+        if replace {
+            best = candidate;
+        }
+    }
+    Ok(best)
+}
+
+fn power_value(arguments: Vec<Value>) -> Result<Value, RuntimeError> {
+    expect_arity("pow", &arguments, 2)?;
+    if let (Value::Int(base), Value::Int(exponent)) = (&arguments[0], &arguments[1])
+        && *exponent >= 0
+    {
+        let exponent = u32::try_from(*exponent)
+            .map_err(|_| RuntimeError::new("pow() exponent is too large"))?;
+        return base
+            .checked_pow(exponent)
+            .map(Value::Int)
+            .ok_or_else(|| RuntimeError::new("integer overflow in pow()"));
+    }
+    let base = numeric_scalar("pow", &arguments[0])?;
+    let exponent = numeric_scalar("pow", &arguments[1])?;
+    let result = base.powf(exponent);
+    if result.is_finite() {
+        Ok(Value::Float(result))
+    } else {
+        Err(RuntimeError::new(
+            "pow() result is not a finite real number",
+        ))
+    }
+}
+
+fn unary_float_math(
+    name: &str,
+    arguments: Vec<Value>,
+    operation: impl FnOnce(f64) -> Result<f64, RuntimeError>,
+) -> Result<Value, RuntimeError> {
+    expect_arity(name, &arguments, 1)?;
+    let value = numeric_scalar(name, &arguments[0])?;
+    operation(value).map(Value::Float)
+}
+
+fn rounded_integer(
+    name: &str,
+    arguments: Vec<Value>,
+    operation: fn(f64) -> f64,
+) -> Result<Value, RuntimeError> {
+    expect_arity(name, &arguments, 1)?;
+    match &arguments[0] {
+        Value::Int(value) => Ok(Value::Int(*value)),
+        Value::Float(value) => float_to_integer(name, operation(*value)).map(Value::Int),
+        value => Err(RuntimeError::new(format!(
+            "{name}() expected int or float, got `{}`",
+            value.type_name()
+        ))),
+    }
+}
+
+fn numeric_scalar(name: &str, value: &Value) -> Result<f64, RuntimeError> {
+    match value {
+        Value::Int(value) => Ok(*value as f64),
+        Value::Float(value) => Ok(*value),
+        value => Err(RuntimeError::new(format!(
+            "{name}() expected int or float, got `{}`",
+            value.type_name()
+        ))),
+    }
+}
+
+fn numeric_order(
+    name: &str,
+    left: &Value,
+    right: &Value,
+) -> Result<std::cmp::Ordering, RuntimeError> {
+    let ordering = match (left, right) {
+        (Value::Int(left), Value::Int(right)) => Some(left.cmp(right)),
+        (Value::Int(left), Value::Float(right)) => (*left as f64).partial_cmp(right),
+        (Value::Float(left), Value::Int(right)) => left.partial_cmp(&(*right as f64)),
+        (Value::Float(left), Value::Float(right)) => left.partial_cmp(right),
+        (Value::Int(_) | Value::Float(_), right) => {
+            return Err(RuntimeError::new(format!(
+                "{name}() expected int or float, got `{}`",
+                right.type_name()
+            )));
+        }
+        (left, _) => {
+            return Err(RuntimeError::new(format!(
+                "{name}() expected int or float, got `{}`",
+                left.type_name()
+            )));
+        }
+    };
+    ordering.ok_or_else(|| RuntimeError::new(format!("{name}() cannot compare NaN")))
+}
+
+fn float_to_integer(name: &str, value: f64) -> Result<i64, RuntimeError> {
+    let upper_bound = -(i64::MIN as f64);
+    if !value.is_finite() || value < i64::MIN as f64 || value >= upper_bound {
+        return Err(RuntimeError::new(format!(
+            "{name}() result does not fit in int"
+        )));
+    }
+    Ok(value as i64)
+}
+
 fn file_error(operation: &str, path: &str, error: std::io::Error) -> RuntimeError {
     RuntimeError::new(format!("{operation}({path:?}) failed: {error}"))
 }
@@ -1046,6 +1310,8 @@ mod tests {
                 write_file({file_literal}, "hello");
                 append_file({file_literal}, " world");
                 print(file_exists({file_literal}));
+                print(is_file({file_literal}), is_dir({file_literal}));
+                print(is_file({directory_literal}), is_dir({directory_literal}));
                 print(read_file({file_literal}));
                 print(len(list_dir({directory_literal})));
             "#
@@ -1055,7 +1321,42 @@ mod tests {
         std::fs::remove_file(&file).unwrap();
         std::fs::remove_dir(&directory).unwrap();
 
-        assert_eq!(result.unwrap(), ["true", "hello world", "1"]);
+        assert_eq!(
+            result.unwrap(),
+            ["true", "true false", "false true", "hello world", "1"]
+        );
+    }
+
+    #[test]
+    fn supports_string_and_math_builtins() {
+        let output = execute(
+            r#"
+                print(upper("Mix"), lower("RUST"), trim("  text  "));
+                print(contains("hello", "ell"), starts_with("hello", "he"), ends_with("hello", "lo"));
+                print(split("a,b,c", ","));
+                print(join("-", ["a", "b", "c"]));
+                print(replace("a-b-a", "a", "x"));
+                print(str([1, "x"]));
+                print(abs(-5), min(3, 1.5, 2), max(3, 1.5, 2));
+                print(pow(2, 10), pow(4, -1), sqrt(9));
+                print(floor(2.9), ceil(2.1), round(2.5), round(3.5));
+            "#,
+        )
+        .unwrap();
+        assert_eq!(
+            output,
+            [
+                "MIX rust text",
+                "true true true",
+                "[\"a\", \"b\", \"c\"]",
+                "a-b-c",
+                "x-b-x",
+                "[1, \"x\"]",
+                "5 1.5 3",
+                "1024 0.25 3.0",
+                "2 3 2 4",
+            ]
+        );
     }
 
     #[test]
@@ -1065,5 +1366,11 @@ mod tests {
 
         let error = execute("len(1, 2);").unwrap_err();
         assert!(error.message.contains("expected 1 arguments"));
+
+        let error = execute("split(\"abc\", \"\");").unwrap_err();
+        assert!(error.message.contains("separator cannot be empty"));
+
+        let error = execute("sqrt(-1);").unwrap_err();
+        assert!(error.message.contains("negative"));
     }
 }
