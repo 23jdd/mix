@@ -124,7 +124,8 @@ pub enum TokenKind {
     // =========================
     Illegal,
 }
-/// Span
+/// Token 在原始 UTF-8 源文件中的半开字节范围 `[start, end)`。
+/// 半开范围可以直接用于 `&source[start..end]` 切片。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Span {
     pub start: usize,
@@ -137,8 +138,11 @@ impl Span {
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
+    /// 语法分类，例如 Identifier、Integer、Plus。
     pub kind: TokenKind,
+    /// Token 在源文件中的原始文本，字符串仍然包含引号和转义字符。
     pub lexeme: String,
+    /// 原始文本对应的字节范围。
     pub span: Span,
 }
 impl Token {

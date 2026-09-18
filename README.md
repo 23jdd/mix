@@ -19,12 +19,12 @@
 * [x] 词法分析
 * [x] Parser
 * [x] AST
-* [ ] 表达式求值
-* [ ] 变量系统
-* [ ] 控制流
-* [ ] 函数
-* [ ] Runtime Environment
-* [ ] 内置函数
+* [x] 表达式求值
+* [x] 变量系统
+* [x] 控制流
+* [x] 函数
+* [x] Runtime Environment
+* [x] 内置函数
 * [ ] REPL
 * [ ] Bytecode VM
 
@@ -46,4 +46,15 @@ if name == "Rust" {
 for i in range(0, 10) {
     print(i);
 }
+```
+
+Runtime 使用动态类型和词法作用域，支持闭包、递归函数、Python 风格真值判断、
+负数索引以及字符串和数组迭代。内置函数包括 `print()`、`len()` 和 `range()`。
+
+对象可以使用标识符或字符串作为键：
+
+```text
+let user = {name: "mix", "version": 1};
+user.version += 1;
+print(user.name, user["version"]);
 ```
