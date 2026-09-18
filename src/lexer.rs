@@ -92,3 +92,22 @@ impl Lexer {
         self.next(true)
     }
 }
+#[cfg(test)]
+mod test {
+    use crate::lexer::Lexer;
+    use crate::lexer::token::TokenKind;
+
+    #[test]
+    fn test_peek() {
+        let source = r#"let a=1;"#;
+        let mut lexer = Lexer::new(source.to_string());
+        let token = lexer.peek();
+        assert_eq!(token.kind, TokenKind::Let);
+        assert_eq!(lexer.lexeme_begin, 0);
+        assert_eq!(lexer.forward, 0);
+        let token=lexer.peek();
+        assert_eq!(token.kind, TokenKind::Let);
+        assert_eq!(lexer.lexeme_begin, 0);
+        assert_eq!(lexer.forward, 0);
+    }
+}
